@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
-import { env } from "../src/config/env.js";
 import { createApp } from "./app.js";
+import { prisma } from "./config/clients.js";
+import { env } from "./config/env.js";
 import { logger } from "./utils/logger.js";
 
 function main(): void {
@@ -14,6 +15,7 @@ function main(): void {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, "shutdown:start");
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    await prisma.$disconnect().catch(() => void 0);
     logger.info({ signal }, "shutdown:complete");
     process.exit(0);
   };

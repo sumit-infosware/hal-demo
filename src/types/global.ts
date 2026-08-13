@@ -1,4 +1,4 @@
-import type { AccountSnapshot } from "./common.js";
+import type { AccountSnapshot } from "./common.ts";
 
 declare global {
   namespace Express {
