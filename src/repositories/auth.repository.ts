@@ -15,4 +15,10 @@ export const authRepository = {
     prisma.user.create({
       data: userData,
     }),
+
+  updateLastLogin: (userId: string) =>
+    prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
+    }),
 };
