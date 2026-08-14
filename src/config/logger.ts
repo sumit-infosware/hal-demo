@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import pino from "pino";
-import { env } from "../config/env.js";
+import { env } from "./env.js";
 
 const logFile = join(process.cwd(), "logs", "app.log");
 

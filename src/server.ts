@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { prisma } from "./config/clients.js";
 import { env } from "./config/env.js";
-import { logger } from "./utils/logger.js";
+import { logger } from "./config/logger.js";
 
 function main(): void {
   const app = createApp();
