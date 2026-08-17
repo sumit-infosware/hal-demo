@@ -68,4 +68,149 @@ export const rbacRepository = {
       await tx.userRole.deleteMany({ where: { userId } });
       return tx.userRole.create({ data: { userId, roleId } });
     }),
+
+  // ─── Role CRUD ───────────────────────────────────────────────
+  findRoleById: (id: string) =>
+    prisma.role.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isSystem: true,
+        createdAt: true,
+        updatedAt: true,
+        permissions: {
+          select: {
+            permission: { select: { id: true, code: true, description: true } },
+          },
+        },
+      },
+    }),
+
+  findRoleByNameForCreate: (name: string) =>
+    prisma.role.findUnique({ where: { name }, select: { id: true } }),
+
+  createRole: (data: { name: string; description?: string; permissionIds?: string[] }) =>
+    prisma.role.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        permissions: data.permissionIds?.length
+          ? {
+              create: data.permissionIds.map((permissionId) => ({
+                permissionId,
+              })),
+            }
+          : undefined,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isSystem: true,
+        createdAt: true,
+        updatedAt: true,
+        permissions: {
+          select: {
+            permission: { select: { id: true, code: true, description: true } },
+          },
+        },
+      },
+    }),
+
+  updateRole: (id: string, data: { name?: string; description?: string | null }) =>
+    prisma.role.update({
+      where: { id },
+      data: {
+        name: data.name,
+        description: data.description,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isSystem: true,
+        createdAt: true,
+        updatedAt: true,
+        permissions: {
+          select: {
+            permission: { select: { id: true, code: true, description: true } },
+          },
+        },
+      },
+    }),
+
+  deleteRole: (id: string) => prisma.role.delete({ where: { id } }),
+
+  /**
+   * Replaces a role's permission set with the supplied ids.
+   * The join is many-to-many, so we delete existing links and recreate them
+   * inside a transaction to keep the relationship consistent.
+   */
+  setRolePermissions: async (roleId: string, permissionIds: string[]) =>
+    prisma.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({ where: { roleId } });
+      if (permissionIds.length) {
+        await tx.rolePermission.createMany({
+          data: permissionIds.map((permissionId) => ({ roleId, permissionId })),
+        });
+      }
+      return tx.role.findUnique({
+        where: { id: roleId },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          isSystem: true,
+          createdAt: true,
+          updatedAt: true,
+          permissions: {
+            select: {
+              permission: { select: { id: true, code: true, description: true } },
+            },
+          },
+        },
+      });
+    }),
+
+  // ─── Permission CRUD ─────────────────────────────────────────
+  findPermissionById: (id: string) =>
+    prisma.permission.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        createdAt: true,
+      },
+    }),
+
+  findPermissionByCode: (code: string) =>
+    prisma.permission.findUnique({ where: { code }, select: { id: true } }),
+
+  createPermission: (data: { code: string; description?: string }) =>
+    prisma.permission.create({
+      data: { code: data.code, description: data.description },
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        createdAt: true,
+      },
+    }),
+
+  updatePermission: (id: string, data: { code?: string; description?: string | null }) =>
+    prisma.permission.update({
+      where: { id },
+      data: { code: data.code, description: data.description },
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        createdAt: true,
+      },
+    }),
+
+  deletePermission: (id: string) => prisma.permission.delete({ where: { id } }),
 };

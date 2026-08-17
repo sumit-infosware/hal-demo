@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import type { ZodType } from "zod";
 import { env } from "../config/env.js";
+import { logger } from "../config/logger.js";
 import { AppError } from "../errors/errors.js";
 import { errorBody } from "../http/ApiResponse.js";
 
@@ -33,8 +34,13 @@ export function csrfProtection(req: Request, _res: Response, next: NextFunction)
       (o) =>
         origin === o || origin === new URL(o).host || (origin as string).includes(new URL(o).host),
     );
-    const hasHeader = Boolean(req.header("x-requested-with"));
-    if (!allowed || !hasHeader) {
+    // const hasHeader = Boolean(req.header("x-requested-with"));
+    // if (!allowed || !hasHeader) {
+    if (!allowed) {
+      logger.error(
+        { allowed: origin, hasHeader: req.header("x-requested-with") },
+        "CSRF validation failed",
+      );
       return next(new AppError("CSRF validation failed", 403, "CSRF_FAILED"));
     }
   }

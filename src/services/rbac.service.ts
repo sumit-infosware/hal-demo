@@ -1,4 +1,9 @@
-import { AuthenticationError, NotFoundError } from "../errors/errors.js";
+import {
+  AuthenticationError,
+  ConflictError,
+  NotFoundError,
+  prismaErrorToAppError,
+} from "../errors/errors.js";
 import { rbacRepository } from "../repositories/rbac.repository.js";
 
 /**
@@ -56,5 +61,123 @@ export const rbacService = {
     }
     await rbacRepository.assignRole(userId, role.id);
     return { userId, role: role.name };
+  },
+
+  // ─── Role CRUD ───────────────────────────────────────────────
+  createRole: async (data: { name: string; description?: string; permissionIds?: string[] }) => {
+    const existing = await rbacRepository.findRoleByNameForCreate(data.name);
+    if (existing) {
+      throw new ConflictError(`Role "${data.name}" already exists`);
+    }
+    try {
+      return await rbacRepository.createRole(data);
+    } catch (err) {
+      throw prismaErrorToAppError(err);
+    }
+  },
+
+  getRoleById: async (id: string) => {
+    const role = await rbacRepository.findRoleById(id);
+    if (!role) {
+      throw new NotFoundError("Role");
+    }
+    return role;
+  },
+
+  updateRole: async (
+    id: string,
+    data: { name?: string; description?: string | null; permissionIds?: string[] },
+  ) => {
+    const existing = await rbacRepository.findRoleById(id);
+    if (!existing) {
+      throw new NotFoundError("Role");
+    }
+    if (data.name && data.name !== existing.name && existing.isSystem) {
+      throw new ConflictError("System roles cannot be renamed");
+    }
+    try {
+      const updated = await rbacRepository.updateRole(id, {
+        name: data.name,
+        description: data.description,
+      });
+      // Permission assignment is a full replace when provided.
+      if (data.permissionIds) {
+        return await rbacRepository.setRolePermissions(id, data.permissionIds);
+      }
+      return updated;
+    } catch (err) {
+      throw prismaErrorToAppError(err);
+    }
+  },
+
+  deleteRole: async (id: string) => {
+    const existing = await rbacRepository.findRoleById(id);
+    if (!existing) {
+      throw new NotFoundError("Role");
+    }
+    if (existing.isSystem) {
+      throw new ConflictError("System roles cannot be deleted");
+    }
+    try {
+      await rbacRepository.deleteRole(id);
+      return { id };
+    } catch (err) {
+      throw prismaErrorToAppError(err);
+    }
+  },
+
+  // ─── Permission CRUD ─────────────────────────────────────────
+  createPermission: async (data: { code: string; description?: string }) => {
+    const existing = await rbacRepository.findPermissionByCode(data.code);
+    if (existing) {
+      throw new ConflictError(`Permission "${data.code}" already exists`);
+    }
+    try {
+      return await rbacRepository.createPermission(data);
+    } catch (err) {
+      throw prismaErrorToAppError(err);
+    }
+  },
+
+  getPermissionById: async (id: string) => {
+    const permission = await rbacRepository.findPermissionById(id);
+    if (!permission) {
+      throw new NotFoundError("Permission");
+    }
+    return permission;
+  },
+
+  updatePermission: async (id: string, data: { code?: string; description?: string | null }) => {
+    const existing = await rbacRepository.findPermissionById(id);
+    if (!existing) {
+      throw new NotFoundError("Permission");
+    }
+    try {
+      return await rbacRepository.updatePermission(id, data);
+    } catch (err) {
+      throw prismaErrorToAppError(err);
+    }
+  },
+
+  deletePermission: async (id: string) => {
+    const existing = await rbacRepository.findPermissionById(id);
+    if (!existing) {
+      throw new NotFoundError("Permission");
+    }
+    try {
+      await rbacRepository.deletePermission(id);
+      return { id };
+    } catch (err) {
+      throw prismaErrorToAppError(err);
+    }
+  },
+
+  /** Returns the effective permission codes for a given user (existing helper). */
+  getMyPermissions: async (userId: string) => {
+    const access = await rbacRepository.findUserWithAccess(userId);
+    if (!access) {
+      throw new NotFoundError("User not found");
+    }
+    return access.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.code));
   },
 };

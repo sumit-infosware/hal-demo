@@ -1,155 +1,119 @@
-import bcrypt from "bcrypt";
-import "dotenv/config";
-import { PrismaClient } from "../prisma/generated/prisma/client.js";
-
-const prisma = new PrismaClient();
+import { prisma } from "../src/config/clients.js";
+import { PERMISSIONS } from "../src/constants/permissions.js";
+import { ROLES } from "../src/constants/roles.js";
+import { authHelper } from "../src/helpers/auth.helper.js";
 
 async function main() {
-  console.log(" Starting database seed...");
+  // ─── Permissions ─────────────────────────────────────────────
+  // Idempotent: upsert by unique `code` so the seed is safe to run repeatedly.
+  const permissionDefs: { code: string; description: string }[] = [
+    { code: "users.read", description: "Allows reading user records" },
+    { code: "users.write", description: "Allows creating/updating user records" },
+    { code: "users.delete", description: "Allows deleting user records" },
+    { code: PERMISSIONS.ADMIN_ACCESS, description: "Grants access to admin-only operations" },
+    { code: PERMISSIONS.ROLE_CREATE, description: "Allows creating roles" },
+    { code: PERMISSIONS.ROLE_READ, description: "Allows reading roles" },
+    { code: PERMISSIONS.ROLE_UPDATE, description: "Allows updating roles" },
+    { code: PERMISSIONS.ROLE_DELETE, description: "Allows deleting roles" },
+    { code: PERMISSIONS.PERMISSION_CREATE, description: "Allows creating permissions" },
+    { code: PERMISSIONS.PERMISSION_READ, description: "Allows reading permissions" },
+    { code: PERMISSIONS.PERMISSION_UPDATE, description: "Allows updating permissions" },
+    { code: PERMISSIONS.PERMISSION_DELETE, description: "Allows deleting permissions" },
+  ];
 
-  // Create roles
+  for (const def of permissionDefs) {
+    await prisma.permission.upsert({
+      where: { code: def.code },
+      update: { description: def.description },
+      create: def,
+    });
+  }
+
+  // ─── Roles ───────────────────────────────────────────────────
+  // Two roles are seeded: an admin with full access and a standard
+  // user with read-only access. Both are marked as system roles so
+  // they cannot be renamed or deleted through the CRUD endpoints.
   const adminRole = await prisma.role.upsert({
-    where: { name: "admin" },
+    where: { name: ROLES.ADMIN },
     update: {},
-    create: {
-      name: "admin",
-      description: "Administrator with full access",
-      isSystem: true,
-    },
+    create: { name: ROLES.ADMIN, description: "Administrator with full access", isSystem: true },
   });
 
   const userRole = await prisma.role.upsert({
-    where: { name: "user" },
+    where: { name: ROLES.USER },
     update: {},
     create: {
-      name: "user",
-      description: "Regular user with standard access",
+      name: ROLES.USER,
+      description: "Standard authenticated user with read-only access",
       isSystem: true,
     },
   });
 
-  console.log(" Roles created:", { admin: adminRole.name, user: userRole.name });
-
-  // Create permissions
-  const permissions = await Promise.all([
-    prisma.permission.upsert({
-      where: { code: "users.read" },
-      update: {},
-      create: { code: "users.read", description: "Read user information" },
-    }),
-    prisma.permission.upsert({
-      where: { code: "users.write" },
-      update: {},
-      create: { code: "users.write", description: "Create and update users" },
-    }),
-    prisma.permission.upsert({
-      where: { code: "users.delete" },
-      update: {},
-      create: { code: "users.delete", description: "Delete users" },
-    }),
-    prisma.permission.upsert({
-      where: { code: "admin.access" },
-      update: {},
-      create: { code: "admin.access", description: "Access admin panel" },
-    }),
-  ]);
-
-  console.log(
-    " Permissions created:",
-    permissions.map((p) => p.code),
-  );
-
-  // Assign permissions to roles
-  await prisma.rolePermission.upsert({
-    where: { roleId_permissionId: { roleId: adminRole.id, permissionId: permissions[0].id } },
-    update: {},
-    create: { roleId: adminRole.id, permissionId: permissions[0].id },
-  });
-  await prisma.rolePermission.upsert({
-    where: { roleId_permissionId: { roleId: adminRole.id, permissionId: permissions[1].id } },
-    update: {},
-    create: { roleId: adminRole.id, permissionId: permissions[1].id },
-  });
-  await prisma.rolePermission.upsert({
-    where: { roleId_permissionId: { roleId: adminRole.id, permissionId: permissions[2].id } },
-    update: {},
-    create: { roleId: adminRole.id, permissionId: permissions[2].id },
-  });
-  await prisma.rolePermission.upsert({
-    where: { roleId_permissionId: { roleId: adminRole.id, permissionId: permissions[3].id } },
-    update: {},
-    create: { roleId: adminRole.id, permissionId: permissions[3].id },
+  // ─── Role ↔ Permission assignments ──────────────────────────
+  // Admin receives EVERY permission defined in the system (full access).
+  const allPermissions = await prisma.permission.findMany({ select: { id: true } });
+  await prisma.rolePermission.deleteMany({ where: { roleId: adminRole.id } });
+  await prisma.rolePermission.createMany({
+    data: allPermissions.map((p: { id: string }) => ({ roleId: adminRole.id, permissionId: p.id })),
   });
 
-  await prisma.rolePermission.upsert({
-    where: { roleId_permissionId: { roleId: userRole.id, permissionId: permissions[0].id } },
-    update: {},
-    create: { roleId: userRole.id, permissionId: permissions[0].id },
+  // User receives ONLY read permissions (any code ending in ".read").
+  const userPermissions = await prisma.permission.findMany({
+    where: { code: { endsWith: ".read" } },
+    select: { id: true },
+  });
+  await prisma.rolePermission.deleteMany({ where: { roleId: userRole.id } });
+  await prisma.rolePermission.createMany({
+    data: userPermissions.map((p: { id: string }) => ({ roleId: userRole.id, permissionId: p.id })),
   });
 
-  console.log(" Role permissions assigned");
-
-  // Hash passwords
-  const saltRounds = 12;
-  const adminPasswordHash = await bcrypt.hash("Admin@123", saltRounds);
-  const userPasswordHash = await bcrypt.hash("User@123", saltRounds);
-
-  // Create admin user
-  const adminUser = await prisma.user.upsert({
-    where: { email: "admin@example.com" },
-    update: {},
-    create: {
-      email: "admin@example.com",
-      password: adminPasswordHash,
+  // ─── Users ───────────────────────────────────────────────────
+  // Two demo accounts are seeded so the RBAC flow can be exercised:
+  //   • user1 → admin role  (full access to every permission)
+  //   • user2 → user  role  (read-only access)
+  // Passwords are hashed with the project's bcrypt helper. Upserted
+  // by unique email so the seed is safe to run repeatedly.
+  const usersToSeed = [
+    {
+      email: "admin@gmail.com",
+      password: "Admin@1234",
       firstName: "Admin",
       lastName: "User",
-      isActive: true,
+      roleId: adminRole.id,
     },
-  });
-
-  // Create regular user
-  const regularUser = await prisma.user.upsert({
-    where: { email: "user@example.com" },
-    update: {},
-    create: {
-      email: "user@example.com",
-      password: userPasswordHash,
-      firstName: "Regular",
+    {
+      email: "user@gmail.com",
+      password: "User@1234",
+      firstName: "Readonly",
       lastName: "User",
-      isActive: true,
+      roleId: userRole.id,
     },
-  });
+  ];
 
-  console.log(" Users created:", { admin: adminUser.email, user: regularUser.email });
+  for (const u of usersToSeed) {
+    const passwordHash = await authHelper.encryptPassword(u.password);
+    const user = await prisma.user.upsert({
+      where: { email: u.email },
+      update: { password: passwordHash, firstName: u.firstName, lastName: u.lastName },
+      create: {
+        email: u.email,
+        password: passwordHash,
+        firstName: u.firstName,
+        lastName: u.lastName,
+      },
+    });
 
-  // Assign roles to users
-  await prisma.userRole.upsert({
-    where: { userId_roleId: { userId: adminUser.id, roleId: adminRole.id } },
-    update: {},
-    create: { userId: adminUser.id, roleId: adminRole.id },
-  });
+    // Assign the role (idempotent: delete existing links, then recreate).
+    await prisma.userRole.deleteMany({ where: { userId: user.id } });
+    await prisma.userRole.create({ data: { userId: user.id, roleId: u.roleId } });
+  }
 
-  await prisma.userRole.upsert({
-    where: { userId_roleId: { userId: regularUser.id, roleId: userRole.id } },
-    update: {},
-    create: { userId: regularUser.id, roleId: userRole.id },
-  });
-
-  console.log(" User roles assigned");
-
-  console.log("\n Seed completed successfully!");
-  console.log("\n Test Credentials:");
-  console.log("────────────────────────────────────────────────");
-  console.log("│ Role        │ Email                │ Password    │");
-  console.log("├────────────────────────────────────────────────");
-  console.log("│ Admin       │ admin@example.com    │ Admin@123   │");
-  console.log("│ User        │ user@example.com     │ User@123    │");
-  console.log("────────────────────────────────────────────────");
+  console.log("Seed complete: roles, permissions and users upserted.");
 }
 
 main()
   .catch((e) => {
-    console.error(" Seed failed:", e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
