@@ -1,58 +1,9 @@
 import { Router } from "express";
-import {
-  loginUser,
-  logoutUser,
-  refreshAccessToken,
-  registerUser,
-} from "../controllers/auth.controller.js";
+import { loginUser, logoutUser, refreshAccessToken } from "../controllers/auth.controller.js";
 import { validate } from "../middleware/http.middleware.js";
-import {
-  loginSchema,
-  logoutSchema,
-  refreshTokenSchema,
-  registerSchema,
-} from "../schemas/auth.schemas.js";
+import { loginSchema, logoutSchema, refreshTokenSchema } from "../schemas/auth.schemas.js";
 
 export const authRouter = Router();
-
-/**
- * @openapi
- * /auth/register:
- *   post:
- *     summary: Register a new user
- *     description: Creates a new user account with the provided registration information.
- *     tags:
- *       - Authentication
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RegisterRequest'
- *     responses:
- *       '201':
- *         description: User registered successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/UserResponse'
- *                 requestId:
- *                   type: string
- *                   example: req-abc123
- *       '400':
- *         $ref: '#/components/responses/BadRequest'
- *       '409':
- *         $ref: '#/components/responses/Conflict'
- *       '500':
- *         $ref: '#/components/responses/InternalServerError'
- */
-authRouter.post("/register", validate(registerSchema), registerUser);
 
 /**
  * @openapi

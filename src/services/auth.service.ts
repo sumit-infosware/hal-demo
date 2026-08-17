@@ -1,24 +1,22 @@
-import { AuthenticationError, ConflictError } from "../errors/errors.js";
+import { AuthenticationError, NotFoundError } from "../errors/errors.js";
 import { authHelper } from "../helpers/auth.helper.js";
 import { authRepository } from "../repositories/auth.repository.js";
+import { rbacService } from "./rbac.service.js";
 
 const {
   findUserByEmail,
-  createUser,
   updateLastLogin,
   createSession,
   findSessionByJti,
   revokeSession,
   revokeSessionFamily,
+  findUserById,
+  listUsers,
+  countUsers,
   hashToken,
 } = authRepository;
-const {
-  encryptPassword,
-  verifyPassword,
-  generateAccessToken,
-  generateRefreshToken,
-  verifyRefreshToken,
-} = authHelper;
+const { verifyPassword, generateAccessToken, generateRefreshToken, verifyRefreshToken } =
+  authHelper;
 
 function toSafeUser(user: { id: string; email: string; firstName: string; lastName: string }) {
   return {
@@ -46,26 +44,6 @@ function parseExpiry(expiresIn: string): Date {
 }
 
 export const authService = {
-  register: async (data: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-  }) => {
-    const email = data.email.toLowerCase();
-    if (await findUserByEmail(email)) {
-      throw new ConflictError("Email already registered");
-    }
-    const passwordHash = await encryptPassword(data.password);
-    const user = await createUser({
-      email: data.email,
-      password: passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-    });
-    return toSafeUser(user);
-  },
-
   login: async (data: { email: string; password: string; userAgent?: string; ip?: string }) => {
     const email = data.email.toLowerCase();
     const user = await findUserByEmail(email);
@@ -178,5 +156,62 @@ export const authService = {
 
   logoutAll: async (userId: string) => {
     await authRepository.revokeAllUserSessions(userId);
+  },
+
+  // ─── User / account management ──────────────────────────────
+  listUsers: async (options: { page: number; limit: number }) => {
+    const page = Math.max(1, options.page);
+    const limit = Math.max(1, options.limit);
+    const [items, total] = await Promise.all([
+      listUsers({ skip: (page - 1) * limit, take: limit }),
+      countUsers(),
+    ]);
+    return {
+      users: items.map((u) => ({
+        id: u.id,
+        email: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        isActive: u.isActive,
+        roles: u.roles.map((r) => r.role.name),
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
+  getUserById: async (id: string) => {
+    const user = await findUserById(id);
+    if (!user) {
+      throw new NotFoundError("User");
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      isActive: user.isActive,
+      roles: user.roles.map((r) => r.role.name),
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  },
+
+  /**
+   * Assigns a single role to a user (replacing any existing roles).
+   * Authorization (role.update permission) is enforced at the route layer.
+   */
+  assignRole: async (userId: string, roleName: string) => {
+    const user = await findUserById(userId);
+    if (!user) {
+      throw new NotFoundError("User");
+    }
+    return rbacService.assignRole(userId, roleName);
   },
 };

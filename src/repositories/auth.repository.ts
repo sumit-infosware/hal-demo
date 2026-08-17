@@ -11,16 +11,6 @@ export const authRepository = {
       where: { email },
     }),
 
-  createUser: (userData: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-  }) =>
-    prisma.user.create({
-      data: userData,
-    }),
-
   updateLastLogin: (userId: string) =>
     prisma.user.update({
       where: { id: userId },
@@ -79,6 +69,49 @@ export const authRepository = {
       where: { familyId, revokedAt: null },
       data: { revokedAt: new Date() },
     }),
+
+  // ─── User / account management ──────────────────────────────
+  findUserById: (id: string) =>
+    prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        roles: {
+          select: {
+            role: { select: { name: true } },
+          },
+        },
+      },
+    }),
+
+  listUsers: (options: { skip: number; take: number }) =>
+    prisma.user.findMany({
+      skip: options.skip,
+      take: options.take,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        roles: {
+          select: {
+            role: { select: { name: true } },
+          },
+        },
+      },
+    }),
+
+  countUsers: () => prisma.user.count(),
 
   hashToken,
 };

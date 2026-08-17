@@ -2,26 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { success } from "../http/ApiResponse.js";
 import { authService } from "../services/auth.service.js";
 
-const { register, login, refreshToken, logout } = authService;
-
-export const registerUser = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> => {
-  try {
-    const data = req.body as {
-      email: string;
-      password: string;
-      firstName: string;
-      lastName: string;
-    };
-    const user = await register(data);
-    success(res, user, 201, req.requestId);
-  } catch (e) {
-    next(e);
-  }
-};
+const { login, refreshToken, logout } = authService;
 
 export const loginUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -31,6 +12,7 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
       userAgent: req.headers["user-agent"],
       ip: req.ip,
     });
+
     // Set refresh token as httpOnly cookie
     res.cookie("refresh_token", result.refreshToken, {
       httpOnly: true,

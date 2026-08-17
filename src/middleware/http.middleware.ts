@@ -54,6 +54,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     requestId,
     stack,
   );
+
   // Only log 5xx and unexpected errors; hide details from clients in production.
   if (appErr.statusCode >= 500) {
     console.error(`[${requestId}] ${appErr.code}`, err);
