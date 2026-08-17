@@ -1,5 +1,6 @@
-import { z } from "zod";
 import "dotenv/config";
+import { z } from "zod";
+import { logger } from "./logger.js";
 
 const secretField = z
   .string()
@@ -8,8 +9,8 @@ const secretField = z
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(3000),
-  DATABASE_URL: z.string().default("postgresql://postgres:root@localhost:5432/hal_sit"),
+  PORT: z.coerce.number().int().positive().default(4500),
+  DATABASE_URL: z.string().default("postgresql://postgres:root@localhost:5432/dev_hal_sit"),
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
   JWT_ISSUER: z.string().min(1).default("my-secure-backend"),
   JWT_AUDIENCE: z.string().min(1).default("my-secure-backend-api"),
@@ -26,11 +27,16 @@ const envSchema = z.object({
   PUBLIC_PATHS: z.string().default("/health,/api/v1/auth/login"),
 });
 
-
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error("❌ Invalid environment variables:");
+  logger.error(
+    {
+      errors: parsed.error.flatten().fieldErrors,
+    },
+    "Invalid environment variables",
+  );
+  console.error("Invalid environment variables:");
   console.error(JSON.stringify(parsed.error.flatten().fieldErrors, null, 2));
   process.exit(1);
 }
@@ -42,7 +48,7 @@ if (
   data.NODE_ENV === "production" &&
   (data.JWT_ACCESS_SECRET.startsWith("dev-") || data.JWT_REFRESH_SECRET.startsWith("dev-"))
 ) {
-  console.error("❌ Production requires real JWT secrets (run: npm run keys:generate)");
+  console.error("Production requires real JWT secrets (run: npm run keys:generate)");
   process.exit(1);
 }
 

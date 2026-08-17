@@ -11,7 +11,7 @@ export function applySecurity(router: Router): void {
     cors({
       origin: env.isProd ? env.corsOrigins : true,
       credentials: true,
-      methods: ["GET", "POST", "PATCH", "DELETE"],
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
       allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Request-Id"],
       maxAge: 600,
     }),

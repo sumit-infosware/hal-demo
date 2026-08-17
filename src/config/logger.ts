@@ -1,19 +1,18 @@
 import { join } from "node:path";
 import pino from "pino";
-import { env } from "./env.js";
 
 const logFile = join(process.cwd(), "logs", "app.log");
 
 function buildLogger() {
   return pino({
-    level: env.LOG_LEVEL,
+    level: process.env.LOG_LEVEL || "info",
 
     transport: {
       targets: [
         // Always write logs to file
         {
           target: "pino/file",
-          level: env.LOG_LEVEL,
+          level: process.env.LOG_LEVEL || "info",
           options: {
             destination: logFile,
             mkdir: true,
@@ -21,11 +20,11 @@ function buildLogger() {
         },
 
         // Pretty logs in development
-        ...(env.isDev
+        ...(process.env.NODE_ENV === "development"
           ? [
               {
                 target: "pino-pretty",
-                level: env.LOG_LEVEL,
+                level: process.env.LOG_LEVEL || "info",
                 options: {
                   colorize: true,
                   translateTime: "SYS:HH:MM:ss",

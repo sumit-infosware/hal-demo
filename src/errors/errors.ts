@@ -17,7 +17,7 @@ export class AppError extends Error {
   constructor(
     message: string,
     statusCode: number = HttpStatus.INTERNAL_SERVER_ERROR,
-    code = "INTERNAL_ERROR",
+    code: string = "INTERNAL_ERROR",
     details?: ErrorDetails,
   ) {
     super(message);

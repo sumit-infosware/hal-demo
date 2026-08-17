@@ -15,7 +15,9 @@ function main(): void {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, "shutdown:start");
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    await prisma.$disconnect().catch(() => void 0);
+    await prisma.$disconnect().catch((error) => {
+      logger.error({ error }, "shutdown:prisma_disconnect_failed");
+    });
     logger.info({ signal }, "shutdown:complete");
     process.exit(0);
   };
