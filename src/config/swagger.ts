@@ -345,6 +345,92 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        UserCreateRequest: {
+          type: "object",
+          required: ["email", "password", "firstName", "lastName", "roleId"],
+          properties: {
+            email: {
+              type: "string",
+              format: "email",
+              maxLength: 254,
+              description: "User's email address (used for login)",
+              example: "jane@example.com",
+            },
+            password: {
+              type: "string",
+              minLength: 8,
+              maxLength: 128,
+              description: "Initial password (min 8, max 128 characters). Hashed server-side.",
+              example: "StrongPassword123!",
+            },
+            firstName: {
+              type: "string",
+              minLength: 1,
+              maxLength: 80,
+              description: "User's first name",
+              example: "Jane",
+            },
+            lastName: {
+              type: "string",
+              minLength: 1,
+              maxLength: 80,
+              description: "User's last name",
+              example: "Smith",
+            },
+            roleId: {
+              type: "string",
+              format: "uuid",
+              description: "Id of the role to assign to the new user",
+              example: "550e8400-e29b-41d4-a716-446655440000",
+            },
+          },
+        },
+        UserUpdateRequest: {
+          type: "object",
+          properties: {
+            email: {
+              type: "string",
+              format: "email",
+              maxLength: 254,
+              description: "User's email address",
+              example: "jane@example.com",
+            },
+            password: {
+              type: "string",
+              minLength: 8,
+              maxLength: 128,
+              description:
+                "New password. If omitted, the existing password is kept. Hashed server-side.",
+              example: "NewStrongPassword123!",
+            },
+            firstName: {
+              type: "string",
+              minLength: 1,
+              maxLength: 80,
+              description: "User's first name",
+              example: "Jane",
+            },
+            lastName: {
+              type: "string",
+              minLength: 1,
+              maxLength: 80,
+              description: "User's last name",
+              example: "Smith",
+            },
+            isActive: {
+              type: "boolean",
+              description: "Whether the user account is active",
+              example: true,
+            },
+            roleId: {
+              type: "string",
+              format: "uuid",
+              description:
+                "Id of the role to assign. Changing a role requires the roles.update permission.",
+              example: "550e8400-e29b-41d4-a716-446655440000",
+            },
+          },
+        },
         // RBAC schemas
         PermissionResponse: {
           type: "object",
@@ -517,6 +603,84 @@ const options: swaggerJSDoc.Options = {
             },
           },
         },
+        // Audit schemas
+        AuditLog: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              format: "uuid",
+              description: "Unique audit record identifier",
+              example: "550e8400-e29b-41d4-a716-446655440000",
+            },
+            userId: {
+              type: "string",
+              format: "uuid",
+              nullable: true,
+              description: "Identifier of the actor who performed the action",
+              example: "550e8400-e29b-41d4-a716-446655440000",
+            },
+            action: {
+              type: "string",
+              description: "Action that was performed",
+              example: "role.create",
+            },
+            resource: {
+              type: "string",
+              description: "Resource type the action targeted",
+              example: "role",
+            },
+            resourceId: {
+              type: "string",
+              nullable: true,
+              description: "Identifier of the affected resource",
+              example: "550e8400-e29b-41d4-a716-446655440000",
+            },
+            ip: {
+              type: "string",
+              nullable: true,
+              description: "Source IP address of the request",
+              example: "203.0.113.5",
+            },
+            userAgent: {
+              type: "string",
+              nullable: true,
+              description: "User agent of the request",
+              example: "Mozilla/5.0",
+            },
+            metadata: {
+              type: "object",
+              description: "Additional contextual metadata (requestId, actorEmail, etc.)",
+            },
+            createdAt: {
+              type: "string",
+              format: "date-time",
+              description: "When the action occurred",
+              example: "2026-01-01T10:00:00.000Z",
+            },
+          },
+        },
+        Pagination: {
+          type: "object",
+          properties: {
+            page: {
+              type: "integer",
+              example: 1,
+            },
+            limit: {
+              type: "integer",
+              example: 20,
+            },
+            total: {
+              type: "integer",
+              example: 42,
+            },
+            totalPages: {
+              type: "integer",
+              example: 3,
+            },
+          },
+        },
       },
       responses: {
         BadRequest: {
@@ -668,6 +832,10 @@ const options: swaggerJSDoc.Options = {
       {
         name: "RBAC",
         description: "Role and permission management endpoints (CRUD for roles and permissions)",
+      },
+      {
+        name: "Audit",
+        description: "Audit log query endpoints",
       },
     ],
   },

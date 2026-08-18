@@ -1,3 +1,4 @@
+import type { AuditContext } from "../audit/audit.types.ts";
 import type { AccountSnapshot } from "./common.ts";
 
 declare global {
@@ -9,6 +10,8 @@ declare global {
       user?: AccountSnapshot;
       /** Original request ip (normalized helper). */
       clientIp?: string;
+      /** Audit context for the current request (set by audit middleware). */
+      auditCtx?: AuditContext;
     }
     interface Response {
       /** Optional error logged flag to avoid double-logging in error middleware. */

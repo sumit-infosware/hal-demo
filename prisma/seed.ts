@@ -7,9 +7,10 @@ async function main() {
   // ─── Permissions ─────────────────────────────────────────────
   // Idempotent: upsert by unique `code` so the seed is safe to run repeatedly.
   const permissionDefs: { code: string; description: string }[] = [
-    { code: "users.read", description: "Allows reading user records" },
-    { code: "users.write", description: "Allows creating/updating user records" },
-    { code: "users.delete", description: "Allows deleting user records" },
+    { code: PERMISSIONS.USER_READ, description: "Allows reading user records" },
+    { code: PERMISSIONS.USER_CREATE, description: "Allows creating user records" },
+    { code: PERMISSIONS.USER_UPDATE, description: "Allows updating user records" },
+    { code: PERMISSIONS.USER_DELETE, description: "Allows deleting user records" },
     { code: PERMISSIONS.ADMIN_ACCESS, description: "Grants access to admin-only operations" },
     { code: PERMISSIONS.ROLE_CREATE, description: "Allows creating roles" },
     { code: PERMISSIONS.ROLE_READ, description: "Allows reading roles" },

@@ -22,6 +22,12 @@ export const PERMISSIONS = {
 
   // Existing application-level permission (seeded by the original seed).
   ADMIN_ACCESS: "admin.access",
+
+  // ─── User CRUD ───────────────────────────────────────────────
+  USER_CREATE: "user:create",
+  USER_READ: "user:read",
+  USER_UPDATE: "user:update",
+  USER_DELETE: "user:delete",
 } as const;
 
 /** Type representing every valid permission code. */

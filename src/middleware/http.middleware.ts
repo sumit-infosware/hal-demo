@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import type { ZodType } from "zod";
+import { ZodError } from "zod";
+import { Prisma } from "../../prisma/generated/prisma/client.js";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import { AppError } from "../errors/errors.js";
@@ -49,23 +51,52 @@ export function csrfProtection(req: Request, _res: Response, next: NextFunction)
 
 /** Express error middleware — normalizes any thrown error into the envelope. */
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
-  const appErr = err instanceof AppError ? err : new AppError("Something went wrong", 500);
   const requestId = req.requestId;
-  const stack = env.isDev && appErr.statusCode >= 500 ? (err as Error)?.stack : undefined;
-  const body = errorBody(
-    appErr.statusCode,
-    appErr.code,
-    appErr.message,
-    appErr.details,
-    requestId,
-    stack,
-  );
 
-  // Only log 5xx and unexpected errors; hide details from clients in production.
-  if (appErr.statusCode >= 500) {
-    console.error(`[${requestId}] ${appErr.code}`, err);
+  // Zod validation errors (e.g. from validate() or thrown directly).
+  if (err instanceof ZodError) {
+    const details = err.issues.map((i) => ({ field: i.path.join("."), message: i.message }));
+    logger.warn({ requestId, code: "VALIDATION_ERROR", details }, "validation failed");
+    res
+      .status(400)
+      .json(errorBody(400, "VALIDATION_ERROR", "Validation failed", details, requestId));
+    return;
   }
-  res.status(appErr.statusCode).json(body);
+
+  // Known Prisma constraint / record errors.
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === "P2002") {
+      const target = (err.meta?.target as string[] | undefined)?.join(", ") ?? "field";
+      logger.warn({ requestId, code: "CONFLICT", target }, "unique constraint violation");
+      res
+        .status(409)
+        .json(errorBody(409, "CONFLICT", `${target} already exists`, undefined, requestId));
+      return;
+    }
+    if (err.code === "P2025") {
+      logger.warn({ requestId, code: "NOT_FOUND" }, "record not found");
+      res.status(404).json(errorBody(404, "NOT_FOUND", "Resource not found", undefined, requestId));
+      return;
+    }
+  }
+
+  const appErr = err instanceof AppError ? err : new AppError("Something went wrong", 500);
+  const stack = env.isDev && appErr.statusCode >= 500 ? (err as Error)?.stack : undefined;
+
+  // Log 5xx and unexpected errors with structured context; hide details from clients in production.
+  if (appErr.statusCode >= 500) {
+    logger.error(
+      { requestId, code: appErr.code, statusCode: appErr.statusCode, err },
+      appErr.message,
+    );
+  } else {
+    logger.warn({ requestId, code: appErr.code, statusCode: appErr.statusCode }, appErr.message);
+  }
+  res
+    .status(appErr.statusCode)
+    .json(
+      errorBody(appErr.statusCode, appErr.code, appErr.message, appErr.details, requestId, stack),
+    );
 }
 
 /** Not-found handler. */

@@ -1,3 +1,5 @@
+import { writeAudit } from "../audit/audit.service.js";
+import type { AuditContext } from "../audit/audit.types.js";
 import { AuthenticationError, NotFoundError } from "../errors/errors.js";
 import { authHelper } from "../helpers/auth.helper.js";
 import { authRepository } from "../repositories/auth.repository.js";
@@ -44,7 +46,10 @@ function parseExpiry(expiresIn: string): Date {
 }
 
 export const authService = {
-  login: async (data: { email: string; password: string; userAgent?: string; ip?: string }) => {
+  login: async (
+    data: { email: string; password: string; userAgent?: string; ip?: string },
+    auditCtx?: AuditContext,
+  ) => {
     const email = data.email.toLowerCase();
     const user = await findUserByEmail(email);
     if (!user) {
@@ -77,6 +82,12 @@ export const authService = {
       ip: data.ip,
       expiresAt,
     });
+    await writeAudit(auditCtx, {
+      action: "auth.login",
+      resource: "auth",
+      resourceId: user.id,
+      result: "success",
+    });
     return {
       user: toSafeUser(user),
       accessToken,
@@ -84,7 +95,12 @@ export const authService = {
     };
   },
 
-  refreshToken: async (refreshToken: string, userAgent?: string, ip?: string) => {
+  refreshToken: async (
+    refreshToken: string,
+    userAgent?: string,
+    ip?: string,
+    auditCtx?: AuditContext,
+  ) => {
     if (!refreshToken) {
       throw new AuthenticationError("Refresh token is required");
     }
@@ -129,13 +145,19 @@ export const authService = {
       expiresAt: newExpiresAt,
     });
     const newAccessToken = await generateAccessToken({ sub: user.id, email: user.email });
+    await writeAudit(auditCtx, {
+      action: "auth.refresh",
+      resource: "auth",
+      resourceId: user.id,
+      result: "success",
+    });
     return {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
     };
   },
 
-  logout: async (refreshToken: string) => {
+  logout: async (refreshToken: string, auditCtx?: AuditContext) => {
     if (!refreshToken) {
       // Idempotent: no token provided, nothing to do
       return;
@@ -147,6 +169,12 @@ export const authService = {
         const session = await findSessionByJti(jti);
         if (session && !session.revokedAt) {
           await revokeSession(session.id);
+          await writeAudit(auditCtx, {
+            action: "auth.logout",
+            resource: "auth",
+            resourceId: session.userId,
+            result: "success",
+          });
         }
       }
     } catch {
@@ -154,19 +182,25 @@ export const authService = {
     }
   },
 
-  logoutAll: async (userId: string) => {
+  logoutAll: async (userId: string, auditCtx?: AuditContext) => {
     await authRepository.revokeAllUserSessions(userId);
+    await writeAudit(auditCtx, {
+      action: "auth.logoutAll",
+      resource: "auth",
+      resourceId: userId,
+      result: "success",
+    });
   },
 
   // ─── User / account management ──────────────────────────────
-  listUsers: async (options: { page: number; limit: number }) => {
+  listUsers: async (options: { page: number; limit: number }, auditCtx?: AuditContext) => {
     const page = Math.max(1, options.page);
     const limit = Math.max(1, options.limit);
     const [items, total] = await Promise.all([
       listUsers({ skip: (page - 1) * limit, take: limit }),
       countUsers(),
     ]);
-    return {
+    const result = {
       users: items.map((u) => ({
         id: u.id,
         email: u.email,
@@ -184,14 +218,16 @@ export const authService = {
         totalPages: Math.ceil(total / limit),
       },
     };
+    await writeAudit(auditCtx, { action: "user.list", resource: "user", result: "success" });
+    return result;
   },
 
-  getUserById: async (id: string) => {
+  getUserById: async (id: string, auditCtx?: AuditContext) => {
     const user = await findUserById(id);
     if (!user) {
       throw new NotFoundError("User");
     }
-    return {
+    const result = {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
@@ -201,17 +237,32 @@ export const authService = {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
+    await writeAudit(auditCtx, {
+      action: "user.read",
+      resource: "user",
+      resourceId: id,
+      result: "success",
+    });
+    return result;
   },
 
   /**
    * Assigns a single role to a user (replacing any existing roles).
    * Authorization (role.update permission) is enforced at the route layer.
    */
-  assignRole: async (userId: string, roleName: string) => {
+  assignRole: async (userId: string, roleName: string, auditCtx?: AuditContext) => {
     const user = await findUserById(userId);
     if (!user) {
       throw new NotFoundError("User");
     }
-    return rbacService.assignRole(userId, roleName);
+    const result = await rbacService.assignRole(userId, roleName);
+    await writeAudit(auditCtx, {
+      action: "user.assignRole",
+      resource: "user",
+      resourceId: userId,
+      result: "success",
+      meta: { roleName },
+    });
+    return result;
   },
 };

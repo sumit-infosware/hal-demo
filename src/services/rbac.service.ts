@@ -1,3 +1,5 @@
+import { writeAudit } from "../audit/audit.service.js";
+import type { AuditContext } from "../audit/audit.types.js";
 import {
   AuthenticationError,
   ConflictError,
@@ -64,13 +66,23 @@ export const rbacService = {
   },
 
   // ─── Role CRUD ───────────────────────────────────────────────
-  createRole: async (data: { name: string; description?: string; permissionIds?: string[] }) => {
+  createRole: async (
+    data: { name: string; description?: string; permissionIds?: string[] },
+    ctx?: AuditContext,
+  ) => {
     const existing = await rbacRepository.findRoleByNameForCreate(data.name);
     if (existing) {
       throw new ConflictError(`Role "${data.name}" already exists`);
     }
     try {
-      return await rbacRepository.createRole(data);
+      const role = await rbacRepository.createRole(data);
+      await writeAudit(ctx, {
+        action: "role.create",
+        resource: "role",
+        resourceId: role.id,
+        meta: { name: role.name, permissionIds: data.permissionIds ?? [] },
+      });
+      return role;
     } catch (err) {
       throw prismaErrorToAppError(err);
     }
@@ -87,6 +99,7 @@ export const rbacService = {
   updateRole: async (
     id: string,
     data: { name?: string; description?: string | null; permissionIds?: string[] },
+    ctx?: AuditContext,
   ) => {
     const existing = await rbacRepository.findRoleById(id);
     if (!existing) {
@@ -102,15 +115,21 @@ export const rbacService = {
       });
       // Permission assignment is a full replace when provided.
       if (data.permissionIds) {
-        return await rbacRepository.setRolePermissions(id, data.permissionIds);
+        await rbacRepository.setRolePermissions(id, data.permissionIds);
       }
+      await writeAudit(ctx, {
+        action: "role.update",
+        resource: "role",
+        resourceId: id,
+        meta: { name: existing.name, permissionIds: data.permissionIds ?? [] },
+      });
       return updated;
     } catch (err) {
       throw prismaErrorToAppError(err);
     }
   },
 
-  deleteRole: async (id: string) => {
+  deleteRole: async (id: string, ctx?: AuditContext) => {
     const existing = await rbacRepository.findRoleById(id);
     if (!existing) {
       throw new NotFoundError("Role");
@@ -120,6 +139,7 @@ export const rbacService = {
     }
     try {
       await rbacRepository.deleteRole(id);
+      await writeAudit(ctx, { action: "role.delete", resource: "role", resourceId: id });
       return { id };
     } catch (err) {
       throw prismaErrorToAppError(err);
@@ -127,13 +147,20 @@ export const rbacService = {
   },
 
   // ─── Permission CRUD ─────────────────────────────────────────
-  createPermission: async (data: { code: string; description?: string }) => {
+  createPermission: async (data: { code: string; description?: string }, ctx?: AuditContext) => {
     const existing = await rbacRepository.findPermissionByCode(data.code);
     if (existing) {
       throw new ConflictError(`Permission "${data.code}" already exists`);
     }
     try {
-      return await rbacRepository.createPermission(data);
+      const permission = await rbacRepository.createPermission(data);
+      await writeAudit(ctx, {
+        action: "permission.create",
+        resource: "permission",
+        resourceId: permission.id,
+        meta: { code: permission.code },
+      });
+      return permission;
     } catch (err) {
       throw prismaErrorToAppError(err);
     }
@@ -147,25 +174,41 @@ export const rbacService = {
     return permission;
   },
 
-  updatePermission: async (id: string, data: { code?: string; description?: string | null }) => {
+  updatePermission: async (
+    id: string,
+    data: { code?: string; description?: string | null },
+    ctx?: AuditContext,
+  ) => {
     const existing = await rbacRepository.findPermissionById(id);
     if (!existing) {
       throw new NotFoundError("Permission");
     }
     try {
-      return await rbacRepository.updatePermission(id, data);
+      const permission = await rbacRepository.updatePermission(id, data);
+      await writeAudit(ctx, {
+        action: "permission.update",
+        resource: "permission",
+        resourceId: id,
+        meta: { code: permission.code },
+      });
+      return permission;
     } catch (err) {
       throw prismaErrorToAppError(err);
     }
   },
 
-  deletePermission: async (id: string) => {
+  deletePermission: async (id: string, ctx?: AuditContext) => {
     const existing = await rbacRepository.findPermissionById(id);
     if (!existing) {
       throw new NotFoundError("Permission");
     }
     try {
       await rbacRepository.deletePermission(id);
+      await writeAudit(ctx, {
+        action: "permission.delete",
+        resource: "permission",
+        resourceId: id,
+      });
       return { id };
     } catch (err) {
       throw prismaErrorToAppError(err);

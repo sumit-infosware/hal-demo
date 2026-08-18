@@ -7,11 +7,14 @@ const { login, refreshToken, logout } = authService;
 export const loginUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const data = req.body as { email: string; password: string };
-    const result = await login({
-      ...data,
-      userAgent: req.headers["user-agent"],
-      ip: req.ip,
-    });
+    const result = await login(
+      {
+        ...data,
+        userAgent: req.headers["user-agent"],
+        ip: req.ip,
+      },
+      req.auditCtx,
+    );
 
     // Set refresh token as httpOnly cookie
     res.cookie("refresh_token", result.refreshToken, {
@@ -35,7 +38,12 @@ export const refreshAccessToken = async (
   try {
     const refreshTokenValue =
       (req.body as { refreshToken?: string })?.refreshToken ?? req.cookies?.refresh_token;
-    const result = await refreshToken(refreshTokenValue, req.headers["user-agent"], req.ip);
+    const result = await refreshToken(
+      refreshTokenValue,
+      req.headers["user-agent"],
+      req.ip,
+      req.auditCtx,
+    );
     // Set new refresh token as httpOnly cookie
     res.cookie("refresh_token", result.refreshToken, {
       httpOnly: true,
@@ -58,7 +66,7 @@ export const logoutUser = async (
   try {
     const refreshTokenValue =
       req.cookies?.refresh_token ?? (req.body as { refreshToken?: string })?.refreshToken;
-    await logout(refreshTokenValue);
+    await logout(refreshTokenValue, req.auditCtx);
     // Clear refresh token cookie
     res.clearCookie("refresh_token", {
       httpOnly: true,

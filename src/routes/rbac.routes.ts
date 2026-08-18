@@ -15,6 +15,7 @@ import {
   updateRoleHandler,
 } from "../controllers/rbac.controller.js";
 import { authenticate, requirePermission } from "../helpers/rbac.helper.js";
+import { audit } from "../middleware/audit.middleware.js";
 import { validate } from "../middleware/http.middleware.js";
 import {
   createPermissionSchema,
@@ -111,6 +112,7 @@ router.post(
   "/roles",
   requirePermission(PERMISSIONS.ROLE_CREATE),
   validate(createRoleSchema),
+  audit,
   createRoleHandler,
 );
 
@@ -222,6 +224,7 @@ router.patch(
   requirePermission(PERMISSIONS.ROLE_UPDATE),
   validate(idParamSchema, "params"),
   validate(updateRoleSchema),
+  audit,
   updateRoleHandler,
 );
 
@@ -277,6 +280,7 @@ router.delete(
   "/roles/:id",
   requirePermission(PERMISSIONS.ROLE_DELETE),
   validate(idParamSchema, "params"),
+  audit,
   deleteRoleHandler,
 );
 
@@ -362,6 +366,7 @@ router.post(
   "/permissions",
   requirePermission(PERMISSIONS.PERMISSION_CREATE),
   validate(createPermissionSchema),
+  audit,
   createPermissionHandler,
 );
 
@@ -471,6 +476,7 @@ router.patch(
   requirePermission(PERMISSIONS.PERMISSION_UPDATE),
   validate(idParamSchema, "params"),
   validate(updatePermissionSchema),
+  audit,
   updatePermissionHandler,
 );
 
@@ -524,6 +530,7 @@ router.delete(
   "/permissions/:id",
   requirePermission(PERMISSIONS.PERMISSION_DELETE),
   validate(idParamSchema, "params"),
+  audit,
   deletePermissionHandler,
 );
 

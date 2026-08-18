@@ -54,7 +54,7 @@ export const createRoleHandler = async (
       description?: string;
       permissionIds?: string[];
     };
-    const role = await createRole({ name, description, permissionIds });
+    const role = await createRole({ name, description, permissionIds }, req.auditCtx);
     success(res, role, 201, req.requestId);
   } catch (e) {
     next(e);
@@ -87,7 +87,7 @@ export const updateRoleHandler = async (
       description?: string | null;
       permissionIds?: string[];
     };
-    const role = await updateRole(id, { name, description, permissionIds });
+    const role = await updateRole(id, { name, description, permissionIds }, req.auditCtx);
     success(res, role, 200, req.requestId);
   } catch (e) {
     next(e);
@@ -101,7 +101,7 @@ export const deleteRoleHandler = async (
 ): Promise<void> => {
   try {
     const { id } = req.params as { id: string };
-    const result = await deleteRole(id);
+    const result = await deleteRole(id, req.auditCtx);
     success(res, result, 200, req.requestId);
   } catch (e) {
     next(e);
@@ -115,7 +115,7 @@ export const createPermissionHandler = async (
 ): Promise<void> => {
   try {
     const { code, description } = req.body as { code: string; description?: string };
-    const permission = await createPermission({ code, description });
+    const permission = await createPermission({ code, description }, req.auditCtx);
     success(res, permission, 201, req.requestId);
   } catch (e) {
     next(e);
@@ -144,7 +144,7 @@ export const updatePermissionHandler = async (
   try {
     const { id } = req.params as { id: string };
     const { code, description } = req.body as { code?: string; description?: string | null };
-    const permission = await updatePermission(id, { code, description });
+    const permission = await updatePermission(id, { code, description }, req.auditCtx);
     success(res, permission, 200, req.requestId);
   } catch (e) {
     next(e);
@@ -158,7 +158,7 @@ export const deletePermissionHandler = async (
 ): Promise<void> => {
   try {
     const { id } = req.params as { id: string };
-    const result = await deletePermission(id);
+    const result = await deletePermission(id, req.auditCtx);
     success(res, result, 200, req.requestId);
   } catch (e) {
     next(e);
